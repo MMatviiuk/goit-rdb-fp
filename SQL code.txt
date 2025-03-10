@@ -1,0 +1,125 @@
+--__________________________________________________________________________________________________________________________________________________________
+-- 1
+CREATE SCHEMA IF NOT EXISTS pandemic;
+USE pandemic;
+
+SELECT COUNT(*) AS total_loaded_records
+FROM pandemic.infectious_cases;
+
+-- 7271 row(s) returned
+--__________________________________________________________________________________________________________________________________________________________
+-- 2
+-- 2.1.
+CREATE TABLE IF NOT EXISTS entities (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    entity VARCHAR(45) NOT NULL,
+    code VARCHAR(8),
+    UNIQUE (entity, code)
+);
+
+-- 2.2.
+CREATE TABLE IF NOT EXISTS infectious (
+    id INT PRIMARY KEY AUTO_INCREMENT,
+    entity_id INT NOT NULL,
+    year YEAR NOT NULL,
+    number_yaws FLOAT,
+    polio_cases FLOAT,
+    cases_guinea_worm FLOAT,
+    number_rabies FLOAT,
+    number_malaria FLOAT,
+    number_hiv FLOAT,
+    number_tuberculosis FLOAT,
+    number_smallpox FLOAT,
+    number_cholera_cases FLOAT,
+    UNIQUE (entity_id, year),
+    FOREIGN KEY (entity_id) REFERENCES entities(id) ON DELETE CASCADE
+);
+
+-- 2.3.
+INSERT INTO entities (entity, code)
+SELECT DISTINCT Entity, Code
+FROM infectious_cases
+WHERE Entity IS NOT NULL;
+
+-- 2.4.
+INSERT INTO infectious (
+    entity_id,
+    year,
+    number_yaws,
+    polio_cases,
+    cases_guinea_worm,
+    number_rabies,
+    number_malaria,
+    number_hiv,
+    number_tuberculosis,
+    number_smallpox,
+    number_cholera_cases
+)
+SELECT e.id,
+       ic.Year,
+       NULLIF(ic.Number_yaws, ''),
+       NULLIF(ic.polio_cases, ''),
+       NULLIF(ic.cases_guinea_worm, ''),
+       NULLIF(ic.Number_rabies, ''),
+       NULLIF(ic.Number_malaria, ''),
+       NULLIF(ic.Number_hiv, ''),
+       NULLIF(ic.Number_tuberculosis, ''),
+       NULLIF(ic.Number_smallpox, ''),
+       NULLIF(ic.Number_cholera_cases, '')
+FROM infectious_cases ic
+JOIN entities e ON ic.Entity = e.entity AND ic.Code <=> e.code;
+
+-- 2.5.
+SELECT COUNT(*) AS total_in_infectious
+FROM infectious;
+
+-- total_in_infectious = 7271
+--__________________________________________________________________________________________________________________________________________________________
+-- 3) 
+SELECT 
+    e.entity, 
+    e.code, 
+    MIN(i.number_rabies) AS min_number_rabies, 
+    MAX(i.number_rabies) AS max_number_rabies, 
+    ROUND(AVG(i.number_rabies), 3) AS average_number_rabies, 
+    ROUND(SUM(i.number_rabies), 3) AS total_number_rabies
+FROM infectious i
+JOIN entities e ON i.entity_id = e.id
+WHERE i.number_rabies IS NOT NULL
+GROUP BY e.entity, e.code
+ORDER BY average_number_rabies DESC
+LIMIT 10;
+
+-- 10 row(s) returned
+--__________________________________________________________________________________________________________________________________________________________
+-- 4
+SELECT 
+    id, 
+    year, 
+    DATE_FORMAT(CONCAT(year, '-01-01'), '%Y-%m-%d') AS start_date, 
+    DATE(NOW()) AS now, 
+    YEAR(NOW()) - year AS years_passed
+FROM infectious;
+
+-- 7271 row(s) returned
+
+--__________________________________________________________________________________________________________________________________________________________
+
+-- 5
+
+DROP FUNCTION IF EXISTS YearsPass;
+DELIMITER //
+CREATE FUNCTION YearsPass(start_year YEAR)
+RETURNS INT
+DETERMINISTIC
+BEGIN
+    RETURN TIMESTAMPDIFF(YEAR, STR_TO_DATE(CONCAT(start_year, '-01-01'), '%Y-%m-%d'), CURDATE());
+END //
+DELIMITER ;
+
+SELECT id,
+       year,
+       YearsPass(year) AS years_pass
+FROM infectious;
+
+--__________________________________________________________________________________________________________________________________________________________
